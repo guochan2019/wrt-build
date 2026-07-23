@@ -1,0 +1,146 @@
+name: Build ImmortalWrt
+
+on:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions (for debugging)'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 0 * * 6'
+
+env:
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-25.12
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Install Dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install -y ack antlr3 asciidoc autoconf automake autopoint \
+            binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler \
+            ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf \
+            haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev \
+            libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev \
+            libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano \
+            ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply \
+            python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools \
+            subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo timedatectl set-timezone "$TZ"
+
+      - name: Clone Source Code
+        run: |
+          sudo mkdir -p /workdir
+          sudo chown $USER:$GROUPS /workdir
+          cd /workdir
+          git clone $REPO_URL -b $REPO_BRANCH openwrt
+          ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+      - name: Load Custom Feeds
+        run: |
+          cp feeds.conf.default openwrt/feeds.conf.default
+          chmod +x diy-part1.sh
+          cd openwrt
+          $GITHUB_WORKSPACE/diy-part1.sh
+
+      - name: Update Feeds
+        run: cd openwrt && ./scripts/feeds update -a
+
+      - name: Install Feeds
+        run: cd openwrt && ./scripts/feeds install -a
+
+      - name: Load Custom Configuration
+        run: |
+          [ -e files ] && cp -r files openwrt/files
+          cp .config openwrt/.config
+          chmod +x diy-part2.sh
+          cd openwrt
+          $GITHUB_WORKSPACE/diy-part2.sh
+
+      - name: SSH Connection (Debug)
+        uses: mxschmitt/action-tmate@v3
+        if: inputs.ssh == true
+        with:
+          limit-access-to-actor: false
+
+      - name: Download Packages
+        run: |
+          cd openwrt
+          make defconfig
+          make download -j8
+          find dl -size -1024c -exec rm -f {} +
+
+      - name: Compile Firmware
+        id: compile
+        run: |
+          cd openwrt
+          echo "=== $(nproc) threads ==="
+          make -j$(nproc) || make -j1 || make -j1 V=s
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "FILE_DATE=_$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+
+      - name: Organize Firmware
+        if: steps.compile.outputs.status == 'success' && !cancelled()
+        run: |
+          cd openwrt/bin/targets/*/*
+          rm -rf packages
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        if: env.FIRMWARE != '' && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ImmortalWrt_${{ env.FILE_DATE }}
+          body: |
+            ## ImmortalWrt 25.12 x86_64
+            - 源码: immortalwrt/immortalwrt@openwrt-25.12
+            - 内核: Linux 6.12
+            - 触发: ${{ github.event_name }}
+          files: ${{ env.FIRMWARE }}/*
+
+      - name: Delete Old Workflow Runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 3
+
+      - name: Remove Old Releases
+        uses: dev-drprasad/delete-older-releases@v0.3.3
+        if: env.FIRMWARE != '' && !cancelled()
+        with:
+          keep_latest: 3
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
