@@ -86,4 +86,22 @@ RCEOF
 fi
 echo "rc.local 已更新"
 
+# 8. golang: 升级 Go 工具链到 1.26.5（tailscale 1.98.9+ 需要）
+#     ImmortalWrt openwrt-25.12 默认 Go 1.26.4，但 tailscale 1.98.9
+#     go.mod 要求 >=1.26.5。GOTOOLCHAIN=local 阻止自动下载，
+#     因此手动升 OpenWrt 的 golang1.26 包。
+#     注意：如果上游 ImmortalWrt 更新 golang1.26 到 1.26.5+，这段可删除。
+# ------------------------------------------------------------
+GO_MK="feeds/packages/lang/golang/golang1.26/Makefile"
+if [ -f "$GO_MK" ]; then
+  CURRENT_PATCH=$(grep -oP 'GO_VERSION_PATCH:=\K\d+' "$GO_MK")
+  if [ "$CURRENT_PATCH" = "4" ]; then
+    sed -i 's/GO_VERSION_PATCH:=4/GO_VERSION_PATCH:=5/' "$GO_MK"
+    sed -i 's/PKG_HASH:=.*/PKG_HASH:=495be4bc87176ac567392e5b4116abd98466d33d7b49d41e764ccc6976b2dc42/' "$GO_MK"
+    echo "Go 已从 1.26.4 升级到 1.26.5"
+  else
+    echo "Go 版本已是 1.26.$CURRENT_PATCH，无需升级"
+  fi
+fi
+
 exit 0
