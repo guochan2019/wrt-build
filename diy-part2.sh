@@ -56,8 +56,14 @@ fi
 
 # 6. luci-app-mosdns: 替换 feeds 包 + v2ray-geodata
 # ------------------------------------------------------------
+# 删除官方 mosdns（改用 sbwml 源），同时清理 feeds install 产生的悬空软链接
 rm -rf feeds/packages/net/mosdns
+rm -f package/feeds/packages/mosdns                    # 删悬空链接
+mkdir -p package/feeds/mosdns
+ln -sf ../../../feeds/mosdns/mosdns package/feeds/mosdns/mosdns  # 指向 sbwml 源
+
 rm -rf feeds/packages/net/v2ray-geodata
+rm -f package/feeds/packages/v2ray-geodata             # 删官方源引起的悬空链接
 git clone --depth 1 https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 
 # 修改 geodata 下载源
