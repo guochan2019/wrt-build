@@ -57,8 +57,7 @@ fi
 # 6. 第三方包覆盖：官方冲突包已在 workflow 中预先删除
 #    feeds install 时第三方版本正常安装，无需软链接 hack
 # ------------------------------------------------------------
-# v2ray-geodata: 官方源已删，clone sbwml 版到 package/（顶层覆盖）
-rm -rf feeds/packages/net/v2ray-geodata
+# v2ray-geodata: clone sbwml 版到 package/（顶层覆盖）
 git clone --depth 1 https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 
 # 修改 geodata 下载源
