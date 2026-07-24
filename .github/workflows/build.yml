@@ -98,7 +98,10 @@ jobs:
           rm -rf feeds/packages/net/daed
           rm -rf feeds/luci/applications/luci-app-openclash
           rm -rf feeds/luci/applications/luci-app-daed
-          echo "已删除官方 mosdns、v2ray-geodata、daed、luci-app-openclash、luci-app-daed（第三方 feed 优先）"
+          # 重新索引，清除已删除包的引用，否则 feeds install 仍会读取旧索引
+          ./scripts/feeds update -i packages
+          ./scripts/feeds update -i luci
+          echo "已删除官方冲突包并重新索引"
 
       - name: Install Feeds
         run: cd openwrt && ./scripts/feeds install -a
