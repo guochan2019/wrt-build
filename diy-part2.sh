@@ -54,16 +54,23 @@ NGINXEOF
   echo "nginx.config 已替换"
 fi
 
-# 6. luci-app-mosdns: 替换 feeds 包 + v2ray-geodata
+# 6. 第三方包覆盖：feeds install 先装官方同名包，第三方被跳过
+#    通过顶层 package/ 软链接让第三方版本优先编译
 # ------------------------------------------------------------
-# 删除官方 mosdns 源，改用顶层 package/ 覆盖方式指向 sbwml 源
+# mosdns: 官方 packages feed → sbwml mosdns feed
 rm -rf feeds/packages/net/mosdns
-rm -f package/feeds/packages/mosdns                    # 删悬空链接
+rm -f package/feeds/packages/mosdns                    # 删 feeds install 悬空链接
 rm -rf package/mosdns
-ln -sf ../feeds/mosdns/mosdns package/mosdns           # 顶层覆盖 -> sbwml 源
+ln -sf ../feeds/mosdns/mosdns package/mosdns           # 顶层覆盖
 
+# luci-app-openclash: 官方 luci feed → vernesong/OpenClash feed
+rm -f package/feeds/luci/luci-app-openclash            # 删 feeds install 悬空链接
+rm -rf package/luci-app-openclash
+ln -sf ../feeds/OpenClash/luci-app-openclash package/luci-app-openclash  # 顶层覆盖
+
+# v2ray-geodata: 官方 packages feed → sbwml v2ray-geodata（clone 到顶层覆盖）
 rm -rf feeds/packages/net/v2ray-geodata
-rm -f package/feeds/packages/v2ray-geodata             # 删官方源引起的悬空链接
+rm -f package/feeds/packages/v2ray-geodata             # 删悬空链接
 git clone --depth 1 https://github.com/sbwml/v2ray-geodata package/v2ray-geodata
 
 # 修改 geodata 下载源
