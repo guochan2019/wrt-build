@@ -70,6 +70,16 @@ jobs:
           git clone $REPO_URL -b $REPO_BRANCH openwrt
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir
+          key: wrt-${{ hashFiles('.config') }}
+          restore-keys: |
+            wrt-
+
       - name: Load Custom Feeds
         run: |
           cp feeds.conf.default openwrt/feeds.conf.default
