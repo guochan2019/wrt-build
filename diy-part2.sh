@@ -6,9 +6,8 @@
 # ------------------------------------------------------------
 sed -i 's/192.168.1.1/192.168.50.5/g' package/base-files/files/bin/config_generate
 
-# 2. 第三方包优先：在 feed install 后，第三方 src-git 源自动覆盖同名包
-#    feeds.conf.default 中第三方源排在官方后面，install 时后者覆盖前者
-#    无需额外操作
+# 2. 第三方包优先：同名包在 feeds install 时先装官方、第三方被跳过。
+#    已改为在 workflow 中 feeds install 前删官方冲突源，这里无需处理。
 
 # 3. luci-app-frpc: 修改翻译 "frp 客户端" → "Frp 客户端"
 # ------------------------------------------------------------
