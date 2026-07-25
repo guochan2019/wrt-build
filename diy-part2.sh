@@ -104,3 +104,19 @@ if [ -f "$GO_MK" ]; then
 fi
 
 exit 0
+
+# 9. QiuSimons daed: 修复 pnpm 前端编译（替换自行下载 Node.js 为使用系统工具）
+# ------------------------------------------------------------
+# QiuSimons 版 daed 在 Build/Prepare 中自行下载 Node.js v24.12.0 并 npm install -g pnpm，
+# 子 shell 无错误处理，pnpm 编译失败后无声继续，导致 webrender/web 目录为空，
+# Go 编译时报 "cannot embed directory web: contains no embeddable files"。
+#
+# 修复：删除 Node.js 下载/安装步骤，直接使用 CI 系统 Node.js + pnpm。
+DAED_MK="feeds/daed/daed/Makefile"
+if [ -f "$DAED_MK" ]; then
+  sed -i '/\.node_tmp\/config/,/npm install -g pnpm/d' "$DAED_MK"
+  sed -i '/\.node_tmp/d' "$DAED_MK"
+  echo "daed Makefile 已 patch：跳过 Node.js 下载，使用系统工具"
+else
+  echo "⚠️ daed Makefile 不存在，跳过 patch"
+fi
