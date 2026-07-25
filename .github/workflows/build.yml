@@ -107,9 +107,11 @@ jobs:
           cd openwrt
           rm -rf feeds/packages/net/mosdns
           rm -rf feeds/packages/net/v2ray-geodata
-          rm -rf feeds/packages/net/daed
           rm -rf feeds/luci/applications/luci-app-openclash
           rm -rf feeds/luci/applications/luci-app-daed
+          # 注意：官方 daed 后端（feeds/packages/net/daed）保留不删。
+          # 官方版直接下载预编译 web.zip，比 QiuSimons 版 pnpm 编译前端更可靠。
+          # luci-app-daed 用 QiuSimons 版，后端用官方版，两者兼容。
           # 重新索引，清除已删除包的引用，否则 feeds install 仍会读取旧索引
           ./scripts/feeds update -i packages
           ./scripts/feeds update -i luci
