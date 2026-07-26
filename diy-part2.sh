@@ -85,7 +85,17 @@ RCEOF
 fi
 echo "rc.local 已更新"
 
-# 8. golang: 升级 Go 工具链到 1.26.5（tailscale 1.98.9+ 需要）
+# 8. daed: pnpm install 在 CI 默认 --frozen-lockfile，导致 turbo 不链接到 PATH
+#     pnpm build --filter daed 调 turbo run build 会报 "turbo: not found"
+#     加 --no-frozen-lockfile 让 pnpm 正确链接 devDependencies
+# ------------------------------------------------------------
+DAED_MK="feeds/daed/daed/Makefile"
+if [ -f "$DAED_MK" ]; then
+  sed -i 's/pnpm install ;/pnpm install --no-frozen-lockfile ;/' "$DAED_MK"
+  echo "daed Makefile: pnpm install 已加 --no-frozen-lockfile"
+fi
+
+# 9. golang: 升级 Go 工具链到 1.26.5（tailscale 1.98.9+ 需要）
 #     ImmortalWrt openwrt-25.12 默认 Go 1.26.4，但 tailscale 1.98.9
 #     go.mod 要求 >=1.26.5。GOTOOLCHAIN=local 阻止自动下载，
 #     因此手动升 OpenWrt 的 golang1.26 包。
