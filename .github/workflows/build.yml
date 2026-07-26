@@ -42,28 +42,21 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          # 添加 apt.llvm.org 源安装最新 Clang/LLVM（QiuSimons 要求）
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          sudo add-apt-repository -y "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main"
-          sudo -E apt-get -qq update
-          # vmlinux-btf 主机编译依赖（build-essential / libssl-dev / bc / flex / bison 等）
-          sudo -E apt-get -qq install -y ack antlr3 asciidoc autoconf automake autopoint \
-            bc binutils bison build-essential bzip2 ccache cmake cpio curl device-tree-compiler \
-            ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf \
-            haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev \
-            libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev \
-            libssl-dev libtool libyaml-dev libz-dev lrzsz mkisofs msmtp nano \
-            ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply \
-            python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools \
-            subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd nodejs \
-            clang-22 lld-22 llvm-22
-          # 设置 LLVM 22 为默认版本
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 100
-          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 100
-          sudo update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-22 100
-          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-22 100
-          # vmlinux-btf 依赖：pahole（提取 BTF 需要 dwarves >= 1.16）
+          # 1. ImmortalWrt 官方预编译环境（按官网要求）
+          sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+
+          # 2. 覆盖 LLVM 到 22（QiuSimons daed 要求 clang >= 16，22 满足）
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          sudo -E apt-get -qq install -y clang-22 lld-22 llvm-22
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 200
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 200
+          sudo update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-22 200
+          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-22 200
+
+          # 3. vmlinux-btf 依赖：pahole（提取 BTF 需要 dwarves >= 1.16）
           sudo -E apt-get -qq install -y dwarves
+
+          # 4. 清理
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
