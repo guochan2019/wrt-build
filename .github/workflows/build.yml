@@ -65,6 +65,12 @@ jobs:
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
 
+      - name: Setup Node.js (modern fallback for daed pnpm build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          check-latest: true
+
       - name: Install pnpm (for daed web UI)
         run: npm install -g pnpm
 
