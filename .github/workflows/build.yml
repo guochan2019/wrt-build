@@ -46,7 +46,10 @@ jobs:
           sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
 
           # 2. 覆盖 LLVM 到 22（QiuSimons daed 要求 clang >= 16，22 满足）
-          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100
+          #    ImmortalWrt 脚本替换了镜像源，需要重新添加 LLVM 22 的 apt 源
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo add-apt-repository -y "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main"
+          sudo -E apt-get -qq update
           sudo -E apt-get -qq install -y clang-22 lld-22 llvm-22
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 200
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 200
