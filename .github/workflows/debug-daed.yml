@@ -1,15 +1,7 @@
-name: Build ImmortalWrt
+name: Debug daed build
 
 on:
   workflow_dispatch:
-    inputs:
-      ssh:
-        description: 'SSH connection to Actions (for debugging)'
-        required: false
-        type: boolean
-        default: false
-  schedule:
-    - cron: '0 0 * * 6'
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
@@ -19,9 +11,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      actions: write
 
     steps:
       - name: Checkout
@@ -42,11 +31,7 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          # 1. ImmortalWrt 官方预编译环境（按官网要求）
           sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-
-          # 2. 覆盖 LLVM 到 22（QiuSimons daed 要求 clang >= 16，22 满足）
-          #    ImmortalWrt 脚本替换了镜像源，需要重新添加 LLVM 22 的 apt 源
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
           sudo add-apt-repository -y "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main"
           sudo -E apt-get -qq update
@@ -55,22 +40,18 @@ jobs:
           sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 200
           sudo update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-22 200
           sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-22 200
-
-          # 3. vmlinux-btf 依赖：pahole（提取 BTF 需要 dwarves >= 1.16）
           sudo -E apt-get -qq install -y dwarves
-
-          # 4. 清理
           sudo -E apt-get -qq autoremove --purge
           sudo -E apt-get -qq clean
           sudo timedatectl set-timezone "$TZ"
 
-      - name: Setup Node.js (modern fallback for daed pnpm build)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           check-latest: true
 
-      - name: Install pnpm (for daed web UI)
+      - name: Install pnpm
         run: npm install -g pnpm
 
       - name: Setup Go
@@ -86,16 +67,6 @@ jobs:
           cd /workdir
           git clone $REPO_URL -b $REPO_BRANCH openwrt
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-
-      - name: Cache build artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            openwrt/dl
-            openwrt/staging_dir
-          key: wrt-${{ hashFiles('.config') }}
-          restore-keys: |
-            wrt-
 
       - name: Load Custom Feeds
         run: |
@@ -115,19 +86,13 @@ jobs:
           rm -rf feeds/packages/net/daed
           rm -rf feeds/luci/applications/luci-app-openclash
           rm -rf feeds/luci/applications/luci-app-daed
-          # 重新索引，清除已删除包的引用，否则 feeds install 仍会读取旧索引
           ./scripts/feeds update -i packages
           ./scripts/feeds update -i luci
-          echo "已删除官方冲突包并重新索引"
 
       - name: Add vmlinux-btf package
         run: |
-          # QiuSimons vmlinux-btf: 提供独立 BTF 供 daed CO-RE 使用
-          # https://github.com/QiuSimons/vmlinux-btf
           git clone --depth 1 https://github.com/QiuSimons/vmlinux-btf.git openwrt/feeds/packages/net/vmlinux-btf
-          # 重新索引 packages feed，让 feeds install 能发现 vmlinux-btf
           cd openwrt && ./scripts/feeds update -i packages
-          echo "vmlinux-btf 已添加到 feeds/packages/net/"
 
       - name: Install Feeds
         run: cd openwrt && ./scripts/feeds install -a
@@ -140,63 +105,23 @@ jobs:
           cd openwrt
           $GITHUB_WORKSPACE/diy-part2.sh
 
-      - name: SSH Connection (Debug)
-        uses: mxschmitt/action-tmate@v3
-        if: inputs.ssh == true
-        with:
-          limit-access-to-actor: false
-
-      - name: Download Packages
+      - name: Download daed source
         run: |
           cd openwrt
           make defconfig
-          make download -j8
-          find dl -size -1024c -exec rm -f {} +
+          make package/feeds/daed/daed/download V=s
 
-      - name: Compile Firmware
-        id: compile
+      - name: Debug daed Build/Prepare V=s
         run: |
           cd openwrt
-          echo "=== $(nproc) threads ==="
-          # 首次编译：单线程，避免并发网络饱和导致 Build/Prepare 失败
-          make -j1 || make -j1 V=s
-          echo "status=success" >> $GITHUB_OUTPUT
-          echo "FILE_DATE=_$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+          echo "=== daed Build/Prepare ==="
+          make package/feeds/daed/daed/prepare V=s 2>&1
+          echo "exit code: $?"
+          echo "=== check webrender/web/ ==="
+          ls -la build_dir/target-x86_64_musl/daed-*/wing/webrender/web/ 2>&1 || echo "dir not found"
 
-      - name: Organize Firmware
-        if: steps.compile.outputs.status == 'success' && !cancelled()
+      - name: Debug daed Compile V=s
         run: |
-          cd openwrt/bin/targets/*/*
-          rm -rf packages
-          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
-        if: env.FIRMWARE != '' && !cancelled()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ImmortalWrt_${{ env.FILE_DATE }}
-          body: |
-            ## ImmortalWrt 25.12 x86_64
-            - 源码: immortalwrt/immortalwrt@openwrt-25.12
-            - 内核: Linux 6.12
-            - 触发: ${{ github.event_name }}
-          files: ${{ env.FIRMWARE }}/*
-
-      - name: Delete Old Workflow Runs
-        uses: Mattraks/delete-workflow-runs@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          retain_days: 1
-          keep_minimum_runs: 3
-
-      - name: Remove Old Releases
-        uses: dev-drprasad/delete-older-releases@v0.3.3
-        if: env.FIRMWARE != '' && !cancelled()
-        with:
-          keep_latest: 3
-          delete_tags: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          cd openwrt
+          echo "=== daed Compile V=s ==="
+          make package/feeds/daed/daed/compile V=s 2>&1 || true
