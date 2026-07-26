@@ -153,12 +153,17 @@ jobs:
           make download -j8
           find dl -size -1024c -exec rm -f {} +
 
+      - name: Debug daed Build/Prepare
+        run: |
+          cd openwrt
+          echo "=== 单独跑 daed 的 Build/Prepare V=s，看 pnpm build 实际报错 ==="
+          make package/feeds/daed/daed/prepare V=s 2>&1 || echo "❌ daed prepare 失败，继续看完整日志"
+
       - name: Compile Firmware
         id: compile
         run: |
           cd openwrt
           echo "=== $(nproc) threads ==="
-          # 首次编译：单线程，避免并发网络饱和导致 Build/Prepare 失败
           make -j1 || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FILE_DATE=_$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
