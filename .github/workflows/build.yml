@@ -129,6 +129,8 @@ jobs:
           # QiuSimons vmlinux-btf: 提供独立 BTF 供 daed CO-RE 使用
           # https://github.com/QiuSimons/vmlinux-btf
           git clone --depth 1 https://github.com/QiuSimons/vmlinux-btf.git openwrt/feeds/packages/net/vmlinux-btf
+          # 重新索引 packages feed，让 feeds install 能发现 vmlinux-btf
+          cd openwrt && ./scripts/feeds update -i packages
           echo "vmlinux-btf 已添加到 feeds/packages/net/"
 
       - name: Install Feeds
