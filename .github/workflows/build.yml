@@ -158,7 +158,8 @@ jobs:
         run: |
           cd openwrt
           echo "=== $(nproc) threads ==="
-          make -j$(nproc) || make -j1 || make -j1 V=s
+          # 首次编译：单线程，避免并发网络饱和导致 Build/Prepare 失败
+          make -j1 || make -j1 V=s
           echo "status=success" >> $GITHUB_OUTPUT
           echo "FILE_DATE=_$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
 
