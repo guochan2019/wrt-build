@@ -16,7 +16,21 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 ## 触发方式
 
 - **手动编译**：Actions → Build ImmortalWrt → Run workflow
-- **定时编译**：每周六凌晨自动编译
+  可选参数：
+  - 路由器管理地址（默认 192.168.50.5）
+  - 固件大小 MB（默认 512）
+- **定时编译**：每周六凌晨自动编译（使用默认参数）
+
+## 工作流定制
+
+| 定制项 | 位置 | 说明 |
+|--------|------|------|
+| 路由器 IP | workflow input + diy-part2.sh §1 | 编译时通过 sed 替换，默认 192.168.50.5 |
+| 固件大小 | workflow input + build.yml | 编译前 sed 修改 CONFIG_TARGET_ROOTFS_PARTSIZE |
+| nginx 配置 | diy-part2.sh §5 | 替换 feeds/packages/net/nginx-util/files/nginx.config |
+| NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 msgid "NAS" → "网络存储" |
+| daed pnpm 修复 | diy-part2.sh §8 | pnpm install 加 --no-frozen-lockfile 解决 CI 下 turbo not found |
+| Go 工具链升级 | diy-part2.sh §10 | golang 1.26.4 → 1.26.5（tailscale 1.98.9+ 需要） |
 
 ## 编译流程
 
