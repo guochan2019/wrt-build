@@ -25,6 +25,8 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 
 | 定制项 | 位置 | 说明 |
 |--------|------|------|
+| LLVM 22 覆盖 + dwarves | build.yml Install Dependencies | daed 编译需要 clang >= 16，覆盖安装 llvm-22；vmlinux-btf 需要 pahole（dwarves 包） |
+| vmlinux-btf 添加到 feeds | build.yml Add vmlinux-btf | clone QiuSimons/vmlinux-btf 到 `feeds/packages/net/` + 重新索引，为 daed CO-RE 提供独立 BTF |
 | 路由器 IP | workflow input → Load Custom Configuration | 编译时 sed 替换 `.config` 中 192.168.1.1，默认 192.168.50.5 |
 | 固件大小 | workflow input → Load Custom Configuration | 编译前 sed 修改 CONFIG_TARGET_ROOTFS_PARTSIZE，默认 512MB |
 | 删除官方冲突包 | build.yml Remove conflicting | `feeds install -a` 前删除 `feeds/packages/net/mosdns`, `net/v2ray-geodata`, `net/daed`, `luci/applications/luci-app-openclash`, `luci/applications/luci-app-daed` + 重新索引 feeds |
