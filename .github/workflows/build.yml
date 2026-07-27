@@ -1,0 +1,201 @@
+name: Build ImmortalWrt
+
+on:
+  workflow_dispatch:
+    inputs:
+      ssh:
+        description: 'SSH connection to Actions (for debugging)'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 0 * * 6'
+
+env:
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: openwrt-25.12
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Install Dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          # 1. ImmortalWrt 官方预编译环境（按官网要求）
+          sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
+
+          # 2. 覆盖 LLVM 到 22（QiuSimons daed 要求 clang >= 16，22 满足）
+          #    ImmortalWrt 脚本替换了镜像源，需要重新添加 LLVM 22 的 apt 源
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          sudo add-apt-repository -y "deb https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main"
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install -y clang-22 lld-22 llvm-22
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-22 200
+          sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-22 200
+          sudo update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-22 200
+          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-22 200
+
+          # 3. vmlinux-btf 依赖：pahole（提取 BTF 需要 dwarves >= 1.16）
+          sudo -E apt-get -qq install -y dwarves
+
+          # 4. 清理
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo timedatectl set-timezone "$TZ"
+
+      - name: Setup Node.js (modern fallback for daed pnpm build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          check-latest: true
+
+      - name: Install pnpm (for daed web UI)
+        run: npm install -g pnpm
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          check-latest: true
+
+      - name: Clone Source Code
+        run: |
+          sudo mkdir -p /workdir
+          sudo chown $USER:$GROUPS /workdir
+          cd /workdir
+          git clone $REPO_URL -b $REPO_BRANCH openwrt
+          ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/dl
+            openwrt/staging_dir
+          key: wrt-${{ hashFiles('.config') }}
+          restore-keys: |
+            wrt-
+
+      - name: Load Custom Feeds
+        run: |
+          cp feeds.conf.default openwrt/feeds.conf.default
+          chmod +x diy-part1.sh
+          cd openwrt
+          $GITHUB_WORKSPACE/diy-part1.sh
+
+      - name: Update Feeds
+        run: cd openwrt && ./scripts/feeds update -a
+
+      - name: Remove conflicting official packages
+        run: |
+          cd openwrt
+          rm -rf feeds/packages/net/mosdns
+          rm -rf feeds/packages/net/v2ray-geodata
+          rm -rf feeds/packages/net/daed
+          rm -rf feeds/luci/applications/luci-app-openclash
+          rm -rf feeds/luci/applications/luci-app-daed
+          # 重新索引，清除已删除包的引用，否则 feeds install 仍会读取旧索引
+          ./scripts/feeds update -i packages
+          ./scripts/feeds update -i luci
+          echo "已删除官方冲突包并重新索引"
+
+      - name: Add vmlinux-btf package
+        run: |
+          # QiuSimons vmlinux-btf: 提供独立 BTF 供 daed CO-RE 使用
+          # https://github.com/QiuSimons/vmlinux-btf
+          git clone --depth 1 https://github.com/QiuSimons/vmlinux-btf.git openwrt/feeds/packages/net/vmlinux-btf
+          # 重新索引 packages feed，让 feeds install 能发现 vmlinux-btf
+          cd openwrt && ./scripts/feeds update -i packages
+          echo "vmlinux-btf 已添加到 feeds/packages/net/"
+
+      - name: Install Feeds
+        run: cd openwrt && ./scripts/feeds install -a
+
+      - name: Load Custom Configuration
+        run: |
+          [ -e files ] && cp -r files openwrt/files
+          cp .config openwrt/.config
+          chmod +x diy-part2.sh
+          cd openwrt
+          $GITHUB_WORKSPACE/diy-part2.sh
+
+      - name: SSH Connection (Debug)
+        uses: mxschmitt/action-tmate@v3
+        if: inputs.ssh == true
+        with:
+          limit-access-to-actor: false
+
+      - name: Download Packages
+        run: |
+          cd openwrt
+          make defconfig
+          make download -j8
+          find dl -size -1024c -exec rm -f {} +
+
+      - name: Compile Firmware
+        id: compile
+        run: |
+          cd openwrt
+          echo "=== $(nproc) threads ==="
+          make -j$(nproc) || make -j1 V=s
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "FILE_DATE=_$(date +'%Y%m%d%H%M')" >> $GITHUB_ENV
+
+      - name: Organize Firmware
+        if: steps.compile.outputs.status == 'success' && !cancelled()
+        run: |
+          cd openwrt/bin/targets/*/*
+          rm -rf packages
+          echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        if: env.FIRMWARE != '' && !cancelled()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ImmortalWrt_${{ env.FILE_DATE }}
+          body: |
+            ## ImmortalWrt 25.12 x86_64
+            - 源码: immortalwrt/immortalwrt@openwrt-25.12
+            - 内核: Linux 6.12
+            - 触发: ${{ github.event_name }}
+          files: ${{ env.FIRMWARE }}/*
+
+      - name: Delete Old Workflow Runs
+        uses: Mattraks/delete-workflow-runs@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 1
+          keep_minimum_runs: 3
+
+      - name: Remove Old Releases
+        uses: dev-drprasad/delete-older-releases@v0.3.3
+        if: env.FIRMWARE != '' && !cancelled()
+        with:
+          keep_latest: 3
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
