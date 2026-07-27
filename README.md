@@ -29,7 +29,7 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 | 固件大小 | workflow input → Load Custom Configuration | 编译前 sed 修改 CONFIG_TARGET_ROOTFS_PARTSIZE，默认 512MB |
 | 删除官方冲突包 | build.yml Remove conflicting | `feeds install -a` 前删除 `feeds/packages/net/mosdns`, `net/v2ray-geodata`, `net/daed`, `luci/applications/luci-app-openclash`, `luci/applications/luci-app-daed` + 重新索引 feeds |
 | Tailscale 版本自动更新 | diy-part2.sh §4 | 编译时查询 GitHub 最新 release，自动更新 Makefile 中的 PKG_VERSION 和 PKG_HASH |
-| v2ray-geodata + GEOIP_URL | diy-part2.sh §6 | clone sbwml/v2ray-geodata 到 `package/`，Makefile 中 GEOIP_URL 改为 Loyalsoldier 源 |
+| v2ray-geodata + GEOIP_URL | diy-part2.sh §6 | clone sbwml/v2ray-geodata 到 `package/`，Makefile 中 GEOIP_URL 改为国内全量包（Loyalsoldier 源） |
 | nginx 配置 | diy-part2.sh §5 | 替换 `feeds/packages/net/nginx-util/files/nginx.config` 为 Quickfile 所需配置 |
 | Frp 客户端翻译 | diy-part2.sh §2 | `feeds/luci/applications/luci-app-frpc/po/zh_Hans/frpc.po` 中 "frp 客户端" → "Frp 客户端" |
 | Nikki 启动脚本 | diy-part2.sh §7 | `rc.local` 追加 `ln -s /usr/share/v2ray/*.* /etc/nikki/run/` |
