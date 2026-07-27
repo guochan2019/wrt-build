@@ -3,6 +3,14 @@ name: Build ImmortalWrt
 on:
   workflow_dispatch:
     inputs:
+      custom_router_ip:
+        description: '路由器管理地址'
+        required: true
+        default: '192.168.50.5'
+      profile:
+        description: '固件大小 (MB)'
+        required: true
+        default: '512'
       ssh:
         description: 'SSH connection to Actions (for debugging)'
         required: false
@@ -133,8 +141,12 @@ jobs:
         run: cd openwrt && ./scripts/feeds install -a
 
       - name: Load Custom Configuration
+        env:
+          CUSTOM_ROUTER_IP: ${{ inputs.custom_router_ip }}
         run: |
           [ -e files ] && cp -r files openwrt/files
+          # 固件大小
+          sed -i "s/CONFIG_TARGET_ROOTFS_PARTSIZE=[0-9]*/CONFIG_TARGET_ROOTFS_PARTSIZE=${{ inputs.profile }}/" .config
           cp .config openwrt/.config
           chmod +x diy-part2.sh
           cd openwrt
