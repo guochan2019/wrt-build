@@ -36,7 +36,7 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 | Frp 客户端翻译 | diy-part2.sh §2 | `feeds/luci/applications/luci-app-frpc/po/zh_Hans/frpc.po` 中 "frp 客户端" → "Frp 客户端" |
 | Nikki 启动脚本 | diy-part2.sh §7 | `rc.local` 追加 `ln -s /usr/share/v2ray/*.* /etc/nikki/run/` |
 | daed pnpm 修复 | diy-part2.sh §8 | daed Makefile 中 `pnpm install` 加 `--no-frozen-lockfile`，解决 CI 下 `turbo: not found` |
-| NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 `msgid "NAS"` / `msgstr "网络存储"` |
+| NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 `msgid "NAS"` / `msgstr "存储"` |
 | Go 工具链升级 | diy-part2.sh §10 | golang 1.26.4 → 1.26.5（tailscale 1.98.9+ 需要 go >= 1.26.5） |
 
 ## 编译流程

@@ -95,7 +95,7 @@ if [ -f "$DAED_MK" ]; then
   echo "daed Makefile: pnpm install 已加 --no-frozen-lockfile"
 fi
 
-# 9. NAS 菜单翻译：一级菜单 "NAS" → "网络存储"
+# 9. NAS 菜单翻译：一级菜单 "NAS" → "存储"
 #     luci-base.json 定义 "title": "NAS"，经 .po 翻译后显示
 #     zh_Hans 已有 Status/System/Services/Network/VPN 的翻译，缺 NAS
 # ------------------------------------------------------------
@@ -105,8 +105,8 @@ if [ -f "$NAS_PO" ]; then
   grep -q 'msgid "NAS"' "$NAS_PO" || {
     echo "" >> "$NAS_PO"
     echo "msgid \"NAS\"" >> "$NAS_PO"
-    echo "msgstr \"网络存储\"" >> "$NAS_PO"
-    echo "NAS 翻译已添加: NAS → 网络存储"
+    echo "msgstr \"存储\"" >> "$NAS_PO"
+    echo "NAS 翻译已添加: NAS → 存储"
   }
 fi
 
