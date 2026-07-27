@@ -37,7 +37,7 @@ fi
 
 # 5. luci-app-quickfile: 替换 nginx 默认配置
 # ------------------------------------------------------------
-NGINX_CONF="feeds/packages/nginx-util/files/nginx.config"
+NGINX_CONF="feeds/packages/net/nginx-util/files/nginx.config"
 if [ -f "$NGINX_CONF" ]; then
   cat > "$NGINX_CONF" << 'NGINXEOF'
 config main 'global'
