@@ -88,22 +88,33 @@ jobs:
           check-latest: true
 
       - name: Clone Source Code
+        id: clone
         run: |
           sudo mkdir -p /workdir
           sudo chown $USER:$GROUPS /workdir
           cd /workdir
           git clone $REPO_URL -b $REPO_BRANCH openwrt
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+          echo "hash=$(git -C /workdir/openwrt rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Cache build artifacts
+      - name: Cache dl/ (source tarballs — stable key)
         uses: actions/cache@v4
         with:
           path: |
             openwrt/dl
-            openwrt/staging_dir
-          key: wrt-${{ hashFiles('.config') }}
+          key: wrt-dl-${{ hashFiles('.config') }}
           restore-keys: |
-            wrt-
+            wrt-dl-
+
+      - name: Cache staging_dir (toolchain — keyed by source commit)
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/staging_dir
+          key: wrt-staging-${{ hashFiles('.config') }}-${{ steps.clone.outputs.hash }}
+          restore-keys: |
+            wrt-staging-${{ hashFiles('.config') }}-
+            wrt-staging-
 
       - name: Load Custom Feeds
         run: |
