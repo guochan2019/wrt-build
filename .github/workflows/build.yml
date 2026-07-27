@@ -96,26 +96,34 @@ jobs:
           cd /workdir
           git clone $REPO_URL -b $REPO_BRANCH openwrt
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-          echo "hash=$(git -C /workdir/openwrt rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "tools_hash=$(git -C /workdir/openwrt log --pretty=tformat:'%h' -n1 tools toolchain)" >> $GITHUB_OUTPUT
 
-      - name: Cache dl/ (source tarballs — stable key)
+      - name: Cache dl/ (source tarballs — versioned by URL, always safe)
         uses: actions/cache@v4
         with:
           path: |
             openwrt/dl
-          key: wrt-dl-${{ hashFiles('.config') }}
-          restore-keys: |
-            wrt-dl-
+          key: wrt-dl
 
-      - name: Cache staging_dir (toolchain — keyed by source commit)
+      - name: Cache host tools (staging_dir/host)
+        id: cache-host
         uses: actions/cache@v4
         with:
           path: |
-            openwrt/staging_dir
-          key: wrt-staging-${{ hashFiles('.config') }}-${{ steps.clone.outputs.hash }}
+            openwrt/staging_dir/host
+          key: wrt-host-${{ steps.clone.outputs.tools_hash }}
           restore-keys: |
-            wrt-staging-${{ hashFiles('.config') }}-
-            wrt-staging-
+            wrt-host-
+
+      - name: Cache cross toolchain (staging_dir/tool*)
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            openwrt/staging_dir/tool*
+          key: wrt-toolchain-${{ steps.clone.outputs.tools_hash }}
+          restore-keys: |
+            wrt-toolchain-
 
       - name: Load Custom Feeds
         run: |
