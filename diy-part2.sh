@@ -95,7 +95,22 @@ if [ -f "$DAED_MK" ]; then
   echo "daed Makefile: pnpm install 已加 --no-frozen-lockfile"
 fi
 
-# 9. golang: 升级 Go 工具链到 1.26.5（tailscale 1.98.9+ 需要）
+# 9. NAS 菜单翻译：一级菜单 "NAS" → "网络存储"
+#     luci-base.json 定义 "title": "NAS"，经 .po 翻译后显示
+#     zh_Hans 已有 Status/System/Services/Network/VPN 的翻译，缺 NAS
+# ------------------------------------------------------------
+NAS_PO="feeds/luci/modules/luci-base/po/zh_Hans/base.po"
+if [ -f "$NAS_PO" ]; then
+  # 避免重复添加
+  grep -q 'msgid "NAS"' "$NAS_PO" || {
+    echo "" >> "$NAS_PO"
+    echo "msgid \"NAS\"" >> "$NAS_PO"
+    echo "msgstr \"网络存储\"" >> "$NAS_PO"
+    echo "NAS 翻译已添加: NAS → 网络存储"
+  }
+fi
+
+# 10. golang: 升级 Go 工具链到 1.26.5（tailscale 1.98.9+ 需要）
 #     ImmortalWrt openwrt-25.12 默认 Go 1.26.4，但 tailscale 1.98.9
 #     go.mod 要求 >=1.26.5。GOTOOLCHAIN=local 阻止自动下载，
 #     因此手动升 OpenWrt 的 golang1.26 包。
