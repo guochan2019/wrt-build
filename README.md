@@ -21,16 +21,21 @@ ImmortalWrt 25.12 x86_64 云编译项目。
   - 固件大小 MB（默认 512）
 - **定时编译**：每周六凌晨自动编译（使用默认参数）
 
-## 工作流定制
+## 工作流定制（按执行顺序）
 
 | 定制项 | 位置 | 说明 |
 |--------|------|------|
-| 路由器 IP | workflow input + diy-part2.sh §1 | 编译时通过 sed 替换，默认 192.168.50.5 |
-| 固件大小 | workflow input + build.yml | 编译前 sed 修改 CONFIG_TARGET_ROOTFS_PARTSIZE |
-| nginx 配置 | diy-part2.sh §5 | 替换 feeds/packages/net/nginx-util/files/nginx.config |
-| NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 msgid "NAS" → "网络存储" |
-| daed pnpm 修复 | diy-part2.sh §8 | pnpm install 加 --no-frozen-lockfile 解决 CI 下 turbo not found |
-| Go 工具链升级 | diy-part2.sh §10 | golang 1.26.4 → 1.26.5（tailscale 1.98.9+ 需要） |
+| 路由器 IP | workflow input → Load Custom Configuration | 编译时 sed 替换 `.config` 中 192.168.1.1，默认 192.168.50.5 |
+| 固件大小 | workflow input → Load Custom Configuration | 编译前 sed 修改 CONFIG_TARGET_ROOTFS_PARTSIZE，默认 512MB |
+| 删除官方冲突包 | build.yml Remove conflicting | `feeds install -a` 前删除 `feeds/packages/net/mosdns`, `net/v2ray-geodata`, `net/daed`, `luci/applications/luci-app-openclash`, `luci/applications/luci-app-daed` + 重新索引 feeds |
+| Tailscale 版本自动更新 | diy-part2.sh §4 | 编译时查询 GitHub 最新 release，自动更新 Makefile 中的 PKG_VERSION 和 PKG_HASH |
+| v2ray-geodata + GEOIP_URL | diy-part2.sh §6 | clone sbwml/v2ray-geodata 到 `package/`，Makefile 中 GEOIP_URL 改为 Loyalsoldier 源 |
+| nginx 配置 | diy-part2.sh §5 | 替换 `feeds/packages/net/nginx-util/files/nginx.config` 为 Quickfile 所需配置 |
+| Frp 客户端翻译 | diy-part2.sh §2 | `feeds/luci/applications/luci-app-frpc/po/zh_Hans/frpc.po` 中 "frp 客户端" → "Frp 客户端" |
+| Nikki 启动脚本 | diy-part2.sh §7 | `rc.local` 追加 `ln -s /usr/share/v2ray/*.* /etc/nikki/run/` |
+| daed pnpm 修复 | diy-part2.sh §8 | daed Makefile 中 `pnpm install` 加 `--no-frozen-lockfile`，解决 CI 下 `turbo: not found` |
+| NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 `msgid "NAS"` / `msgstr "网络存储"` |
+| Go 工具链升级 | diy-part2.sh §10 | golang 1.26.4 → 1.26.5（tailscale 1.98.9+ 需要 go >= 1.26.5） |
 
 ## 编译流程
 
