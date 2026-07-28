@@ -201,6 +201,25 @@ jobs:
           rm -rf packages
           echo "FIRMWARE=$PWD" >> $GITHUB_ENV
 
+      - name: Collect feed packages (.apk)
+        if: steps.compile.outputs.status == 'success' && !cancelled()
+        run: |
+          mkdir -p /tmp/packages
+          for pkg in daed lucky Momo mosdns myownpack Nikki OpenClash quickfile; do
+            src="openwrt/bin/packages/x86_64/$pkg"
+            if [ -d "$src" ] && ls "$src"/*.apk >/dev/null 2>&1; then
+              cp "$src"/*.apk /tmp/packages/
+              echo "  ✅ $pkg ($(ls "$src"/*.apk 2>/dev/null | wc -l) .apk)"
+            else
+              echo "  ⚠️ $pkg (无 .apk 或目录不存在)"
+            fi
+          done
+          cd /tmp
+          tar -czf packages-x86_64.tar.gz -C /tmp/packages .
+          n=$(tar -tzf packages-x86_64.tar.gz 2>/dev/null | wc -l)
+          echo "已打包 $n 个文件 → packages-x86_64.tar.gz"
+          echo "PACKAGES_ARCHIVE=/tmp/packages-x86_64.tar.gz" >> $GITHUB_ENV
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         if: env.FIRMWARE != '' && !cancelled()
@@ -213,7 +232,9 @@ jobs:
             - 源码: immortalwrt/immortalwrt@openwrt-25.12
             - 内核: Linux 6.12
             - 触发: ${{ github.event_name }}
-          files: ${{ env.FIRMWARE }}/*
+          files: |
+            ${{ env.FIRMWARE }}/*
+            ${{ env.PACKAGES_ARCHIVE }}
 
       - name: Delete Old Workflow Runs
         uses: Mattraks/delete-workflow-runs@v2
