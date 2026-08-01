@@ -17,7 +17,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: '0 0 * * 6'
+    - cron: '0 16 * * 0'
 
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
@@ -33,10 +33,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Free Disk Space
-        uses: jlumbroso/free-disk-space@main
+        uses: jlumbroso/free-disk-space@v1.3.1
         with:
           tool-cache: true
           android: true
@@ -73,7 +73,7 @@ jobs:
           sudo timedatectl set-timezone "$TZ"
 
       - name: Setup Node.js (modern fallback for daed pnpm build)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: '22'
           check-latest: true
@@ -82,7 +82,7 @@ jobs:
         run: npm install -g pnpm
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7.0.0
         with:
           go-version: '1.26'
           check-latest: true
@@ -198,7 +198,7 @@ jobs:
           echo "PACKAGES_ARCHIVE=/tmp/packages-x86_64.tar.gz" >> $GITHUB_ENV
 
       - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3.0.2
         if: env.FIRMWARE != '' && !cancelled()
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -222,10 +222,22 @@ jobs:
           keep_minimum_runs: 3
 
       - name: Remove Old Releases
-        uses: dev-drprasad/delete-older-releases@v0.3.3
         if: env.FIRMWARE != '' && !cancelled()
-        with:
-          keep_latest: 3
-          delete_tags: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🧹 清理旧 Release，保留最新 3 个..."
+          releases=$(gh release list --repo ${{ github.repository }} \
+            --json tagName --jq '.[].tagName' \
+            --order desc --limit 50 2>/dev/null | grep '^ImmortalWrt_' || true)
+          count=0
+          for tag in $releases; do
+            count=$((count+1))
+            if [ "$count" -gt 3 ]; then
+              echo "  删除: $tag"
+              gh release delete "$tag" --repo ${{ github.repository }} --yes 2>/dev/null || true
+              # 本地 tag 也要删，否则下次 gh release 会报 tag exists
+              git push origin --delete "$tag" 2>/dev/null || true
+            fi
+          done
+          echo "✅ 清理完成"
