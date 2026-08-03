@@ -130,13 +130,19 @@ jobs:
       - name: Install Feeds
         run: cd openwrt && ./scripts/feeds install -a
 
+      - name: Read Default Params from .config
+        run: |
+          echo "CFG_PARTSIZE=$(grep -oP 'CONFIG_TARGET_ROOTFS_PARTSIZE=\K[0-9]+' .config)" >> "$GITHUB_ENV"
+          echo "CFG_PREINIT_IP=$(grep -oP 'CONFIG_TARGET_PREINIT_IP="\K[^"]+' .config)" >> "$GITHUB_ENV"
+          echo "已读取默认参数: PARTSIZE=$CFG_PARTSIZE, PREINIT_IP=$CFG_PREINIT_IP"
+
       - name: Load Custom Configuration
         env:
-          CUSTOM_ROUTER_IP: ${{ inputs.custom_router_ip }}
+          CUSTOM_ROUTER_IP: ${{ inputs.custom_router_ip || env.CFG_PREINIT_IP }}
         run: |
           [ -e files ] && cp -r files openwrt/files
-          # 固件大小
-          sed -i "s/CONFIG_TARGET_ROOTFS_PARTSIZE=[0-9]*/CONFIG_TARGET_ROOTFS_PARTSIZE=${{ inputs.profile }}/" .config
+          # 固件大小（手动触发用输入，schedule 触发用 .config 默认值）
+          sed -i "s/CONFIG_TARGET_ROOTFS_PARTSIZE=[0-9]*/CONFIG_TARGET_ROOTFS_PARTSIZE=${{ inputs.profile || env.CFG_PARTSIZE }}/" .config
           cp .config openwrt/.config
           chmod +x diy-part2.sh
           cd openwrt
