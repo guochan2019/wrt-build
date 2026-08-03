@@ -132,8 +132,10 @@ jobs:
 
       - name: Read Default Params from .config
         run: |
-          echo "CFG_PARTSIZE=$(grep -oP 'CONFIG_TARGET_ROOTFS_PARTSIZE=\K[0-9]+' .config)" >> "$GITHUB_ENV"
-          echo "CFG_PREINIT_IP=$(grep -oP 'CONFIG_TARGET_PREINIT_IP="\K[^"]+' .config)" >> "$GITHUB_ENV"
+          CFG_PARTSIZE=$(grep -oP 'CONFIG_TARGET_ROOTFS_PARTSIZE=\K[0-9]+' .config)
+          echo "CFG_PARTSIZE=$CFG_PARTSIZE" >> "$GITHUB_ENV"
+          CFG_PREINIT_IP=$(grep -oP 'CONFIG_TARGET_PREINIT_IP="\K[^"]+' .config)
+          echo "CFG_PREINIT_IP=$CFG_PREINIT_IP" >> "$GITHUB_ENV"
           echo "已读取默认参数: PARTSIZE=$CFG_PARTSIZE, PREINIT_IP=$CFG_PREINIT_IP"
 
       - name: Load Custom Configuration
