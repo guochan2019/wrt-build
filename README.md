@@ -19,7 +19,7 @@ ImmortalWrt 25.12 x86_64 云编译项目。
   可选参数：
   - 路由器管理地址（默认 192.168.50.5）
   - 固件大小 MB（默认 512）
-- **定时编译**：每周六凌晨自动编译（使用默认参数）
+- **定时编译**：每周一 0:00（北京时间）自动编译；`workflow_dispatch` 的 inputs 为空，自动从 `.config` 读取固件大小（CONFIG_TARGET_ROOTFS_PARTSIZE）与 IP（CONFIG_TARGET_PREINIT_IP）作为默认值
 
 ## 工作流定制（按执行顺序）
 
@@ -27,8 +27,8 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 |--------|------|------|
 | LLVM 22 覆盖 + dwarves | build.yml Install Dependencies | daed 编译需要 clang >= 16，覆盖安装 llvm-22；vmlinux-btf 需要 pahole（dwarves 包） |
 | vmlinux-btf 添加到 feeds | build.yml Add vmlinux-btf | clone QiuSimons/vmlinux-btf 到 `feeds/packages/net/` + 重新索引，为 daed CO-RE 提供独立 BTF |
-| 路由器 IP | workflow input → Load Custom Configuration | 编译时 sed 替换 `.config` 中 192.168.1.1，默认 192.168.50.5 |
-| 固件大小 | workflow input → Load Custom Configuration | 编译前 sed 修改 CONFIG_TARGET_ROOTFS_PARTSIZE，默认 512MB |
+| 路由器 IP | workflow input + build.yml Read Default Params | 手动触发用输入值；schedule 触发从 `.config` 读 `CONFIG_TARGET_PREINIT_IP`（192.168.50.5）兜底 → diy-part2.sh §1 sed config_generate | 
+| 固件大小 | workflow input + build.yml Read Default Params | 手动触发用输入值；schedule 触发从 `.config` 读 `CONFIG_TARGET_ROOTFS_PARTSIZE`（512MB）兜底 |
 | 删除官方冲突包 | build.yml Remove conflicting | `feeds install -a` 前删除 `feeds/packages/net/mosdns`, `net/v2ray-geodata`, `net/daed`, `luci/applications/luci-app-daed` + 重新索引 feeds |
 | Tailscale 版本自动更新 | diy-part2.sh §4 | 编译时查询 GitHub 最新 release，自动更新 Makefile 中的 PKG_VERSION 和 PKG_HASH |
 | v2ray-geodata + GEOIP_URL | diy-part2.sh §6 | clone sbwml/v2ray-geodata 到 `package/`，Makefile 中 GEOIP_URL 改为国内全量包（Loyalsoldier 源） |
