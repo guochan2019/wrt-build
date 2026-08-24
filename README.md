@@ -37,7 +37,7 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 | Nikki 启动脚本 | diy-part2.sh §7 | `rc.local` 追加 `ln -s /usr/share/v2ray/*.* /etc/nikki/run/` |
 | daed pnpm 修复 | diy-part2.sh §8 | daed Makefile 中 `pnpm install` 加 `--no-frozen-lockfile`，解决 CI 下 `turbo: not found` |
 | NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 `msgid "NAS"` / `msgstr "存储"` |
-| Go 工具链升级 | diy-part2.sh §10 | golang 1.26.4 → 1.26.5（tailscale 1.98.9+ 需要 go >= 1.26.5） |
+| Go 工具链多版本按需 | diy-part2.sh §10 | golang1.26 保底自动追 1.26.x patch；检测到更新 major（如 1.27）时以 golang1.26 为模板合成 golang1.27 包备用并 feeds 安装；tailscale 等激进包 pin 到新版；bootstrap 按官方规则联动（Go 1.N 需 ≥ N-2 取偶） |
 
 ## 编译流程
 

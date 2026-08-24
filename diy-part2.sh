@@ -111,21 +111,118 @@ if [ -f "$NAS_PO" ]; then
   }
 fi
 
-# 10. golang: 升级 Go 工具链到 1.26.5（tailscale 1.98.9+ 需要）
-#     ImmortalWrt openwrt-25.12 默认 Go 1.26.4，但 tailscale 1.98.9
-#     go.mod 要求 >=1.26.5。GOTOOLCHAIN=local 阻止自动下载，
-#     因此手动升 OpenWrt 的 golang1.26 包。
-#     注意：如果上游 ImmortalWrt 更新 golang1.26 到 1.26.5+，这段可删除。
+# 10. golang: 1.26.x 保留为默认工具链 + 新版按需引入
+#     A. golang1.26 自动追最新 1.26.x patch（绝大多数包用它，保持稳定）
+#     B. API 检测到最新稳定版 major.minor > 1.26 时，以 golang1.26 为模板
+#        合成 golang1.27 包（版本+哈希从 go.dev API 取），feeds 重索引安装
+#     C. 需要新 Go 的包逐个 pin（当前: tailscale 自动更新、go.mod 要求激进）
+#     bootstrap 规则: Go 1.N 需 bootstrap ≥ N-2 向下取偶（官方文档）
+#     参考: https://go.dev/doc/install/source (Minimum version of Go required)
 # ------------------------------------------------------------
 GO_MK="feeds/packages/lang/golang/golang1.26/Makefile"
+BOOT_MK="feeds/packages/lang/golang/golang-bootstrap/Makefile"
 if [ -f "$GO_MK" ]; then
-  CURRENT_PATCH=$(grep -oP 'GO_VERSION_PATCH:=\K\d+' "$GO_MK")
-  if [ "$CURRENT_PATCH" = "4" ]; then
-    sed -i 's/GO_VERSION_PATCH:=4/GO_VERSION_PATCH:=5/' "$GO_MK"
-    sed -i 's/PKG_HASH:=.*/PKG_HASH:=495be4bc87176ac567392e5b4116abd98466d33d7b49d41e764ccc6976b2dc42/' "$GO_MK"
-    echo "Go 已从 1.26.4 升级到 1.26.5"
+  GOLANG_INFO=$(curl -s --connect-timeout 10 https://go.dev/dl/?mode=json 2>/dev/null \
+    | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    latest = next(x for x in d if x['stable'])
+    lver = latest['version'][2:]
+    lsrc = next((f for f in latest['files'] if f['filename'] == 'go' + lver + '.src.tar.gz'), None)
+    v126 = next((x for x in d if x['stable'] and x['version'].startswith('go1.26.')), None)
+    v126ver = v126['version'][2:] if v126 else ''
+    v126src = next((f for f in v126['files'] if f['filename'] == 'go' + v126ver + '.src.tar.gz'), None) if v126 else None
+    if lsrc and v126ver:
+        print(lver, lsrc['sha256'], v126ver, v126src['sha256'] if v126src else '')
+except Exception:
+    pass" 2>/dev/null || echo "")
+  LATEST_VER=$(echo "$GOLANG_INFO" | cut -d' ' -f1)
+  LATEST_HASH=$(echo "$GOLANG_INFO" | cut -d' ' -f2)
+  V126_VER=$(echo "$GOLANG_INFO" | cut -d' ' -f3)
+  V126_HASH=$(echo "$GOLANG_INFO" | cut -d' ' -f4)
+  if [ -n "$LATEST_VER" ] && [ -n "$V126_VER" ]; then
+    CUR_MM=$(grep -oP 'GO_VERSION_MAJOR_MINOR:=\K[0-9.]+' "$GO_MK")
+    CUR_PATCH=$(grep -oP 'GO_VERSION_PATCH:=\K\d+' "$GO_MK")
+    # A. golang1.26 追最新 1.26.x patch
+    V126_PATCH=$(echo "$V126_VER" | cut -d. -f3)
+    if [ "$CUR_MM" = "1.26" ] && [ "$V126_PATCH" -gt "$CUR_PATCH" ] 2>/dev/null; then
+      sed -i "s/GO_VERSION_PATCH:=[0-9]*/GO_VERSION_PATCH:=$V126_PATCH/" "$GO_MK"
+      sed -i "s/PKG_HASH:=.*/PKG_HASH:=$V126_HASH/" "$GO_MK"
+      echo "Go 1.26.x 已从 1.26.$CUR_PATCH 升级到 $V126_VER"
+    else
+      echo "Go 1.26.x 无需升级（当前 1.26.$CUR_PATCH）"
+    fi
+    # B. 新版 Go 按需引入（最新 major.minor > 1.26 时合成对应包）
+    LATEST_MM=$(echo "$LATEST_VER" | cut -d. -f1-2)
+    LATEST_PATCH=$(echo "$LATEST_VER" | cut -d. -f3)
+    NEW_MM=""
+    if [ "$LATEST_MM" != "$CUR_MM" ]; then
+      NEW_DIR="feeds/packages/lang/golang/golang$LATEST_MM"
+      if [ ! -f "$NEW_DIR/Makefile" ]; then
+        mkdir -p "$NEW_DIR"
+        cp "$GO_MK" "$NEW_DIR/Makefile"
+        sed -i "s/PKG_NAME:=golang[0-9.]*/PKG_NAME:=golang$LATEST_MM/" "$NEW_DIR/Makefile"
+        sed -i "s/GO_VERSION_MAJOR_MINOR:=[0-9.]*/GO_VERSION_MAJOR_MINOR:=$LATEST_MM/" "$NEW_DIR/Makefile"
+        sed -i "s/GO_VERSION_PATCH:=[0-9]*/GO_VERSION_PATCH:=$LATEST_PATCH/" "$NEW_DIR/Makefile"
+        sed -i "s/PKG_HASH:=.*/PKG_HASH:=$LATEST_HASH/" "$NEW_DIR/Makefile"
+        ./scripts/feeds update -i packages
+        ./scripts/feeds install "golang$LATEST_MM"
+        echo "golang$LATEST_MM 已按需引入（Go $LATEST_VER）"
+      else
+        echo "golang$LATEST_MM 已存在"
+      fi
+      NEW_MM="$LATEST_MM"
+      # bootstrap 检查：Go 1.N 需 bootstrap ≥ N-2 向下取偶
+      if [ -f "$BOOT_MK" ]; then
+        LATEST_MINOR=$(echo "$LATEST_VER" | cut -d. -f2)
+        BOOT_REQ=$((LATEST_MINOR - 2))
+        [ $((BOOT_REQ % 2)) -eq 1 ] && BOOT_REQ=$((BOOT_REQ - 1))
+        BOOT_CUR_MINOR=$(grep -oP 'GO_VERSION_MAJOR_MINOR:=\K[0-9.]+' "$BOOT_MK" | cut -d. -f2)
+        if [ "$BOOT_CUR_MINOR" -lt "$BOOT_REQ" ] 2>/dev/null; then
+          BOOT_INFO=$(curl -s --connect-timeout 10 https://go.dev/dl/?mode=json 2>/dev/null \
+            | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    v = next(x for x in d if x['stable'] and x['version'].startswith('go$BOOT_REQ.'))
+    ver = v['version'][2:]
+    src = next((f for f in v['files'] if f['filename'] == 'go' + ver + '.src.tar.gz'), None)
+    if src:
+        print(ver, src['sha256'])
+except Exception:
+    pass" 2>/dev/null || echo "")
+          BOOT_VER=$(echo "$BOOT_INFO" | cut -d' ' -f1)
+          BOOT_HASH=$(echo "$BOOT_INFO" | cut -d' ' -f2)
+          if [ -n "$BOOT_VER" ]; then
+            BOOT_MM=$(echo "$BOOT_VER" | cut -d. -f1-2)
+            BOOT_PATCH=$(echo "$BOOT_VER" | cut -d. -f3)
+            sed -i "s/GO_VERSION_MAJOR_MINOR:=[0-9.]*/GO_VERSION_MAJOR_MINOR:=$BOOT_MM/" "$BOOT_MK"
+            sed -i "s/GO_VERSION_PATCH:=[0-9]*/GO_VERSION_PATCH:=$BOOT_PATCH/" "$BOOT_MK"
+            sed -i "s/PKG_HASH:=.*/PKG_HASH:=$BOOT_HASH/" "$BOOT_MK"
+            echo "bootstrap 已从 $BOOT_CUR_MINOR.x 升级到 $BOOT_VER（Go $LATEST_VER 要求 ≥ $BOOT_REQ）"
+          else
+            echo "警告: bootstrap 版本查询失败，Go $LATEST_VER 可能编译失败"
+          fi
+        else
+          echo "bootstrap $BOOT_CUR_MINOR.x 满足要求（≥ $BOOT_REQ），无需升级"
+        fi
+      fi
+    fi
+    # C. 需要新 Go 的包逐个 pin（当前: tailscale）
+    if [ -n "$NEW_MM" ]; then
+      TS_MK="feeds/packages/net/tailscale/Makefile"
+      if [ -f "$TS_MK" ]; then
+        if grep -q "PKG_BUILD_DEPENDS:=golang$NEW_MM/host" "$TS_MK"; then
+          echo "tailscale 已 pin 到 golang$NEW_MM/host"
+        else
+          sed -i "s|PKG_BUILD_DEPENDS:=golang/host|PKG_BUILD_DEPENDS:=golang$NEW_MM/host|" "$TS_MK"
+          echo "tailscale 已 pin 到 golang$NEW_MM/host"
+        fi
+      fi
+    fi
   else
-    echo "Go 版本已是 1.26.$CURRENT_PATCH，无需升级"
+    echo "Go 版本查询失败，保持当前版本"
   fi
 fi
 
