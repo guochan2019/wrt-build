@@ -109,7 +109,6 @@ jobs:
       - name: Remove conflicting official packages
         run: |
           cd openwrt
-          rm -rf feeds/packages/net/mosdns
           rm -rf feeds/packages/net/v2ray-geodata
           rm -rf feeds/packages/net/daed
           rm -rf feeds/luci/applications/luci-app-daed
@@ -183,7 +182,7 @@ jobs:
         if: steps.compile.outputs.status == 'success' && !cancelled()
         run: |
           mkdir -p /tmp/packages
-          for pkg in daed lucky Momo mosdns myownpack Nikki quickfile; do
+          for pkg in daed lucky Momo myownpack Nikki quickfile; do
             src="openwrt/bin/packages/x86_64/$pkg"
             if [ -d "$src" ] && ls "$src"/*.apk >/dev/null 2>&1; then
               cp "$src"/*.apk /tmp/packages/
@@ -193,9 +192,6 @@ jobs:
             fi
           done
           # 额外包（不在 feed 目录）
-          for f in openwrt/bin/packages/x86_64/packages/tailscale-*.apk; do
-            [ -f "$f" ] && cp "$f" /tmp/packages/ && echo "  📦 $(basename $f)"
-          done
           for f in openwrt/bin/packages/x86_64/base/v2ray-*.apk; do
             [ -f "$f" ] && cp "$f" /tmp/packages/ && echo "  📦 $(basename $f)"
           done

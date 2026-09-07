@@ -14,27 +14,6 @@
 FRPC_PO="feeds/luci/applications/luci-app-frpc/po/zh_Hans/frpc.po"
 [ -f "$FRPC_PO" ] && sed -i 's/frp 客户端/Frp 客户端/g' "$FRPC_PO"
 
-# 4. tailscale: 自动获取最新版本
-# ------------------------------------------------------------
-TS_MAKEFILE="feeds/packages/net/tailscale/Makefile"
-if [ -f "$TS_MAKEFILE" ]; then
-  TS_VERSION=$(curl -s https://api.github.com/repos/tailscale/tailscale/releases/latest 2>/dev/null \
-    | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['tag_name'].lstrip('v'))" 2>/dev/null \
-    || echo "")
-  if [ -n "$TS_VERSION" ]; then
-    sed -i "s/PKG_VERSION:=.*/PKG_VERSION:=$TS_VERSION/" "$TS_MAKEFILE"
-    # 更新哈希（自动下载并计算）
-    TS_SRC="https://github.com/tailscale/tailscale/archive/v${TS_VERSION}.tar.gz"
-    TS_HASH=$(curl -sL "$TS_SRC" | sha256sum | cut -d' ' -f1)
-    if [ -n "$TS_HASH" ]; then
-      sed -i "s/PKG_HASH:=.*/PKG_HASH:=$TS_HASH/" "$TS_MAKEFILE"
-    fi
-    echo "tailscale 已更新到 v${TS_VERSION}"
-  else
-    echo "tailscale 版本查询失败，保持默认版本"
-  fi
-fi
-
 # 5. luci-app-quickfile: 替换 nginx 默认配置
 # ------------------------------------------------------------
 NGINX_CONF="feeds/packages/net/nginx-util/files/nginx.config"
@@ -115,7 +94,7 @@ fi
 #     A. golang1.26 自动追最新 1.26.x patch（绝大多数包用它，保持稳定）
 #     B. API 检测到最新稳定版 major.minor > 1.26 时，以 golang1.26 为模板
 #        合成 golang1.27 包（版本+哈希从 go.dev API 取），feeds 重索引安装
-#     C. 需要新 Go 的包逐个 pin（当前: tailscale 自动更新、go.mod 要求激进）
+#     C. 需要新 Go 的包逐个 pin（2026-09-07 tailscale 移除后暂无；机制预留）
 #     bootstrap 规则: Go 1.N 需 bootstrap ≥ N-2 向下取偶（官方文档）
 #     参考: https://go.dev/doc/install/source (Minimum version of Go required)
 # ------------------------------------------------------------
@@ -206,18 +185,6 @@ except Exception:
           fi
         else
           echo "bootstrap $BOOT_CUR_MINOR.x 满足要求（≥ $BOOT_REQ），无需升级"
-        fi
-      fi
-    fi
-    # C. 需要新 Go 的包逐个 pin（当前: tailscale）
-    if [ -n "$NEW_MM" ]; then
-      TS_MK="feeds/packages/net/tailscale/Makefile"
-      if [ -f "$TS_MK" ]; then
-        if grep -q "PKG_BUILD_DEPENDS:=golang$NEW_MM/host" "$TS_MK"; then
-          echo "tailscale 已 pin 到 golang$NEW_MM/host"
-        else
-          sed -i "s|PKG_BUILD_DEPENDS:=golang/host|PKG_BUILD_DEPENDS:=golang$NEW_MM/host|" "$TS_MK"
-          echo "tailscale 已 pin 到 golang$NEW_MM/host"
         fi
       fi
     fi
