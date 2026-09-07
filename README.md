@@ -32,7 +32,7 @@ ImmortalWrt 25.12 x86_64 云编译项目。
 | 删除官方冲突包 | build.yml Remove conflicting | `feeds install -a` 前删除 `net/v2ray-geodata`, `net/daed`, `luci/applications/luci-app-daed` + 重新索引 feeds |
 | v2ray-geodata + GEOIP_URL | diy-part2.sh §6 | clone sbwml/v2ray-geodata 到 `package/`，Makefile 中 GEOIP_URL 改为国内全量包（Loyalsoldier 源） |
 | nginx 配置 | diy-part2.sh §5 | 替换 `feeds/packages/net/nginx-util/files/nginx.config` 为 Quickfile 所需配置 |
-| Frp 客户端翻译 | diy-part2.sh §2 | `feeds/luci/applications/luci-app-frpc/po/zh_Hans/frpc.po` 中 "frp 客户端" → "Frp 客户端" |
+| Frp 客户端翻译 | diy-part2.sh §3 | `feeds/luci/applications/luci-app-frpc/po/zh_Hans/frpc.po` 中 "frp 客户端" → "Frp 客户端" |
 | Nikki 启动脚本 | diy-part2.sh §7 | `rc.local` 追加 `ln -s /usr/share/v2ray/*.* /etc/nikki/run/` |
 | daed pnpm 修复 | diy-part2.sh §8 | daed Makefile 中 `pnpm install` 加 `--no-frozen-lockfile`，解决 CI 下 `turbo: not found` |
 | NAS 菜单翻译 | diy-part2.sh §9 | zh_Hans base.po 追加 `msgid "NAS"` / `msgstr "存储"` |
