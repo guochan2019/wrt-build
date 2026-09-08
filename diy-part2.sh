@@ -2,7 +2,7 @@
 # diy-part2.sh — 在 feeds install 后执行
 # 用途：编译定制、包冲突解决、配置修改
 
-# 1. 设置默认 IP（来自 workflow input，默认 192.168.50.5）无密码
+# 1. 设置默认 IP（来自 workflow input，默认 192.168.1.1）无密码
 # ------------------------------------------------------------
 [ -n "$CUSTOM_ROUTER_IP" ] && sed -i "s/192.168.1.1/$CUSTOM_ROUTER_IP/g" package/base-files/files/bin/config_generate
 
